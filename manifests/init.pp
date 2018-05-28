@@ -110,6 +110,7 @@ class ssh (
   $ssh_config_global_known_hosts_group    = 'root',
   $ssh_config_global_known_hosts_mode     = '0644',
   $ssh_config_user_known_hosts_file       = undef,
+  $sync_sshkeys                           = true,
   $config_entries                         = {},
   $keys                                   = undef,
   $manage_root_ssh_config                 = false,
@@ -958,14 +959,6 @@ class ssh (
     }
   }
 
-  # export each node's ssh key
-  @@sshkey { $::fqdn :
-    ensure       => $ssh_key_ensure,
-    host_aliases => [$::hostname, $::ipaddress],
-    type         => $ssh_key_type,
-    key          => $key,
-  }
-
   file { 'ssh_known_hosts':
     ensure  => file,
     path    => $ssh_config_global_known_hosts_file,
@@ -975,16 +968,26 @@ class ssh (
     require => Package[$packages_real],
   }
 
-  # import all nodes' ssh keys
-  if $ssh_key_import_real == true {
-    Sshkey <<||>> {
-      target => $ssh_config_global_known_hosts_file,
+  if $sync_sshkeys {
+    # export each node's ssh key
+    @@sshkey { $::fqdn :
+      ensure       => $ssh_key_ensure,
+      host_aliases => [$::hostname, $::ipaddress],
+      type         => $ssh_key_type,
+      key          => $key,
     }
-  }
 
-  # remove ssh key's not managed by puppet
-  resources  { 'sshkey':
-    purge => $purge_keys_real,
+    # import all nodes' ssh keys
+    if $ssh_key_import_real == true {
+      Sshkey <<||>> {
+        target => $ssh_config_global_known_hosts_file,
+      }
+    }
+
+	  # remove ssh key's not managed by puppet
+	  resources  { 'sshkey':
+	    purge => $purge_keys_real,
+	  }
   }
 
   # manage users' ssh config entries if present
